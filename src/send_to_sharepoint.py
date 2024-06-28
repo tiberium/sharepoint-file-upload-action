@@ -1,8 +1,8 @@
 import sys
 import os
 import msal
-import glob
 import time
+from pathlib import Path
 from office365.graph_client import GraphClient
 from office365.runtime.odata.v4.upload_session_request import UploadSessionRequest
 from office365.onedrive.driveitems.driveItem import DriveItem
@@ -24,8 +24,7 @@ graph_endpoint = sys.argv[10] or "graph.microsoft.com"
 # below used with 'get_by_url' in GraphClient calls
 tenant_url = f'https://{sharepoint_host_name}/sites/{site_name}'
 
-# we're running this in actions, so we'll only ever have one .md file
-local_files = glob.glob(file_path)
+local_files = Path.cwd().glob(pattern=file_path)
 
 def acquire_token():
     """
@@ -41,7 +40,6 @@ def acquire_token():
     return token
 
 client = GraphClient(acquire_token)
-drive = client.sites.get_by_url(tenant_url).drive.root.get_by_path(upload_path)
 
 def progress_status(offset, file_size):
     print(f"Uploaded {offset} bytes from {file_size} bytes ... {offset/file_size*100:.2f}%")
@@ -79,26 +77,32 @@ def resumable_upload(drive, local_path, file_size, chunk_size, max_chunk_retry, 
     return_type.get().execute_query()
     success_callback(return_type)
 
-def upload_file(drive, local_path, chunk_size):
+def upload_file(local_path: Path, chunk_size: int):
+    local_path_sharepoint = local_path.relative_to(Path.cwd())
+
+    drive = client.sites.get_by_url(tenant_url).drive.root.get_by_path(str(upload_path / local_path_sharepoint.parent))
     file_size = os.path.getsize(local_path)
     if file_size < chunk_size:
-        remote_file = drive.upload_file(local_path).execute_query()
+        remote_file = drive.upload_file(str(local_path_sharepoint)).execute_query()
         success_callback(remote_file)
-    else:
-        resumable_upload(
-            drive, 
-            local_path, 
-            file_size, 
-            chunk_size, 
-            max_chunk_retry=60, 
-            timeout_secs=10*60)
+    # else:
+    #     resumable_upload(
+    #         drive, 
+    #         local_path, 
+    #         file_size, 
+    #         chunk_size, 
+    #         max_chunk_retry=60, 
+    #         timeout_secs=10*60)
 
+print (f"Uploading files to {tenant_url}/{upload_path}")
 for f in local_files:
-  for i in range(max_retry):
-    try:
-        upload_file(drive, f, 4*1024*1024)
-        break
-    except Exception as e:
-        print(f"Unexpected error occurred: {e}, {type(e)}")
-        if i == max_retry - 1:
-            raise e
+    if f.is_dir():
+        continue
+    for i in range(max_retry):
+        try:
+            upload_file(f, 4*1024*1024)
+            break
+        except Exception as e:
+            print(f"Unexpected error occurred: {e}, {type(e)}")
+            if i == max_retry - 1:
+                raise e
