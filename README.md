@@ -56,3 +56,14 @@ jobs:
           client_id: ${{ secrets.SHAREPOINT_CLIENT_ID }}
           client_secret: ${{ secrets.SHAREPOINT_CLIENT_SECRET }}
 ```
+
+## Troubleshooting
+
+If you are building docker image locally on MacOS/M* processor, you may need to install `libfii` as a dependency for the `cffi` sub-dependency:
+
+```dockerfile
+RUN apk add --update --no-cache \
+    gcc libc-dev \
+    && apk add libffi-dev
+```
+
