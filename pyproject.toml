@@ -1,0 +1,15 @@
+[tool.poetry]
+name = "sharepoint-file-upload-action"
+version = "0.1.0"
+description = "Uploads one or more files (via glob) to Sharepoint site."
+authors = ["Your Name <you@example.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+office365-rest-python-client = "2.5.3"
+python-dotenv = "1.0.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

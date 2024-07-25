@@ -57,6 +57,14 @@ jobs:
           client_secret: ${{ secrets.SHAREPOINT_CLIENT_SECRET }}
 ```
 
+## Local development
+
+The action is run using the `docker` container (see `Dockerfile`).
+However to run or test the action locally, you can run the Python script directly using your local `python`.
+To simplify the local development, you can use `poetry` to manage the dependencies (see `pyproject.toml`).
+
+The right Python version is defined in the `.python-version` file which is used by `pyenv` to set the local python version.
+
 ## Troubleshooting
 
 If you are building docker image locally on MacOS/M* processor, you may need to install `libfii` as a dependency for the `cffi` sub-dependency:
