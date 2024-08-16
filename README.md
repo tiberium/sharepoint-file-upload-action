@@ -34,6 +34,11 @@ The defaults provided will work for all other cases
 * `graph_endpoint`
   * A Hostname; something like `graph.microsoft.us`
 
+The following are optional, and if set to `true` will delete the file if it already exists in the sharepoint location (before uploading).
+
+* `pre_delete`
+  * `true` or `false`
+
 ## Example action.yml
 
 ```yml
@@ -56,6 +61,14 @@ jobs:
           client_id: ${{ secrets.SHAREPOINT_CLIENT_ID }}
           client_secret: ${{ secrets.SHAREPOINT_CLIENT_SECRET }}
 ```
+
+## Local development
+
+The action is run using the `docker` container (see `Dockerfile`).
+However to run or test the action locally, you can run the Python script directly using your local `python`.
+To simplify the local development, you can use `poetry` to manage the dependencies (see `pyproject.toml`).
+
+The right Python version is defined in the `.python-version` file which is used by `pyenv` to set the local python version.
 
 ## Troubleshooting
 

@@ -9,6 +9,7 @@ from office365.onedrive.driveitems.driveItem import DriveItem
 from office365.onedrive.internal.paths.url import UrlPath
 from office365.runtime.queries.upload_session import UploadSessionQuery
 from office365.onedrive.driveitems.uploadable_properties import DriveItemUploadableProperties
+from office365.runtime.client_request_exception import ClientRequestException
 
 site_name = sys.argv[1]
 sharepoint_host_name = sys.argv[2]
@@ -20,13 +21,14 @@ file_path = sys.argv[7]
 max_retry = int(sys.argv[8]) or 3
 login_endpoint = sys.argv[9] or "login.microsoftonline.com"
 graph_endpoint = sys.argv[10] or "graph.microsoft.com"
+delete_before_upload = True if len(sys.argv) == 12 and sys.argv[11] == "true" else False
 
 # below used with 'get_by_url' in GraphClient calls
 tenant_url = f'https://{sharepoint_host_name}/sites/{site_name}'
 
 local_files = Path.cwd().glob(pattern=file_path)
 
-def acquire_token():
+def acquire_token() -> dict:
     """
     Acquire token via MSAL
     """
@@ -37,6 +39,10 @@ def acquire_token():
         client_credential=client_secret
     )
     token = app.acquire_token_for_client(scopes=[f"https://{graph_endpoint}/.default"])
+
+    if not token:
+        raise ValueError("Failed to acquire token")
+
     return token
 
 client = GraphClient(acquire_token)
@@ -77,30 +83,53 @@ def resumable_upload(drive, local_path, file_size, chunk_size, max_chunk_retry, 
     return_type.get().execute_query()
     success_callback(return_type)
 
+def delete_file(local_path: Path):
+    local_path_sharepoint = local_path.relative_to(Path.cwd())
+    drive_file = client.sites.get_by_url(tenant_url).drive.root.get_by_path(str(upload_path / local_path_sharepoint))
+
+    try:
+        file = drive_file.get().execute_query()
+    except ClientRequestException as e:
+        print(f"File {local_path_sharepoint} not read from Sharepoint, skipping deleting it... Error code: {e.code}")
+        return
+
+    if file.id:
+        file.delete_object().execute_query()
+        print(f"File {local_path_sharepoint} has been deleted from {tenant_url}/{upload_path}")
+    else:
+        print(f"File {local_path_sharepoint} seems not to exist in {tenant_url}/{upload_path}")
+        return
+
 def upload_file(local_path: Path, chunk_size: int):
     local_path_sharepoint = local_path.relative_to(Path.cwd())
 
-    drive = client.sites.get_by_url(tenant_url).drive.root.get_by_path(str(upload_path / local_path_sharepoint.parent))
+    drive_folder = client.sites.get_by_url(tenant_url).drive.root.get_by_path(str(upload_path / local_path_sharepoint.parent))
+
     file_size = os.path.getsize(local_path)
     if file_size < chunk_size:
-        remote_file = drive.upload_file(str(local_path_sharepoint)).execute_query()
+        remote_file = drive_folder.upload_file(str(local_path_sharepoint)).execute_query()
         success_callback(remote_file)
-    # else:
-    #     resumable_upload(
-    #         drive, 
-    #         local_path, 
-    #         file_size, 
-    #         chunk_size, 
-    #         max_chunk_retry=60, 
-    #         timeout_secs=10*60)
+    else:
+        resumable_upload(
+            drive_folder, 
+            local_path, 
+            file_size, 
+            chunk_size, 
+            max_chunk_retry=60, 
+            timeout_secs=10*60
+        )
 
 print (f"Uploading files to {tenant_url}/{upload_path}")
+if delete_before_upload:
+    print(f"--> Deleting files from {tenant_url}/{upload_path} before uploading...")
 for f in local_files:
     if f.is_dir():
         continue
     for i in range(max_retry):
         try:
-            upload_file(f, 4*1024*1024)
+            if delete_before_upload:
+                delete_file(f)
+            upload_file(f, 2*1024*1024)
             break
         except Exception as e:
             print(f"Unexpected error occurred: {e}, {type(e)}")
