@@ -34,6 +34,11 @@ The defaults provided will work for all other cases
 * `graph_endpoint`
   * A Hostname; something like `graph.microsoft.us`
 
+The following are optional, and if set to `true` will delete the file if it already exists in the sharepoint location (before uploading).
+
+* `pre_delete`
+  * `true` or `false`
+
 ## Example action.yml
 
 ```yml
